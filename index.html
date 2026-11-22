@@ -1,0 +1,509 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>If pages: toy prototype</title>
+<style>
+  :root {
+    --fg: #1d2330; --muted: #5d6677; --bg: #fbfbfd; --card: #fff; --line: #e3e6ee;
+    --yes: #c2410c; --no: #1d4ed8; --ok: #15803d; --bad: #b91c1c; --ai: #7c3aed; --human: #0f766e;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; color: var(--fg); background: var(--bg); }
+  main { max-width: 980px; margin: 0 auto; padding: 1.2rem 1rem 3rem; }
+  h1 { font-size: 1.15rem; margin: 0 0 .2rem; }
+  h2 { font-size: 1.35rem; margin: .2rem 0 .4rem; line-height: 1.3; }
+  h3 { font-size: 1rem; margin: 1.6rem 0 .5rem; }
+  a { color: var(--no); }
+  .muted { color: var(--muted); }
+  .small { font-size: .85rem; }
+  nav.tabs { display: flex; gap: .4rem; flex-wrap: wrap; margin: .8rem 0 1rem; }
+  nav.tabs button { border: 1px solid var(--line); background: var(--card); padding: .35rem .8rem; border-radius: 999px; cursor: pointer; font: inherit; }
+  nav.tabs button[aria-selected="true"] { background: var(--fg); color: #fff; border-color: var(--fg); }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: .9rem 1rem; margin-bottom: .8rem; }
+  .parent .meta { display: flex; flex-wrap: wrap; gap: .4rem 1.2rem; font-size: .9rem; color: var(--muted); }
+  .warn { background: #fff8e6; border-color: #f2d8a0; font-size: .88rem; }
+  .branches { display: flex; gap: .6rem; flex-wrap: wrap; margin-top: .5rem; }
+  .pill { display: inline-block; border-radius: 999px; padding: .05rem .55rem; font-size: .78rem; border: 1px solid var(--line); white-space: nowrap; }
+  .pill.human { color: var(--human); border-color: var(--human); }
+  .pill.ai { color: var(--ai); border-color: var(--ai); }
+  .pill.you { color: #a16207; border-color: #a16207; }
+  .pill.ok { background: #e7f6ec; color: var(--ok); border-color: #b9e3c6; }
+  .pill.bad { background: #fdecec; color: var(--bad); border-color: #f3c0c0; }
+  .pill.na { background: #f1f2f6; color: var(--muted); }
+  .dot { display: inline-block; width: .7rem; height: .7rem; border-radius: 50%; vertical-align: middle; margin-right: .25rem; }
+  .toolbar { display: flex; gap: .8rem; align-items: center; flex-wrap: wrap; margin: .4rem 0 .6rem; font-size: .9rem; }
+  select, input, textarea, button.btn { font: inherit; }
+  button.btn { border: 1px solid var(--line); background: var(--card); border-radius: 6px; padding: .25rem .65rem; cursor: pointer; }
+  button.btn:hover { border-color: var(--fg); }
+  .csq { display: grid; grid-template-columns: 1fr 250px; gap: .4rem 1rem; align-items: start; }
+  .csq .title { font-weight: 600; }
+  .csq .id { font-family: ui-monospace, monospace; font-size: .75rem; color: var(--muted); }
+  .csq details { grid-column: 1 / -1; font-size: .88rem; }
+  .csq summary { cursor: pointer; color: var(--muted); }
+  .chart svg { width: 100%; height: auto; display: block; }
+  .nums { font-size: .82rem; color: var(--muted); text-align: right; }
+  table { border-collapse: collapse; width: 100%; font-size: .88rem; }
+  th, td { text-align: left; padding: .3rem .4rem; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { font-weight: 600; color: var(--muted); }
+  .candidate { border-style: dashed; }
+  .rejected { opacity: .6; }
+  .yours { margin-top: .4rem; padding: .5rem; background: #fffbea; border-radius: 6px; display: none; }
+  .yours.open { display: block; }
+  .yours label { display: flex; align-items: center; gap: .5rem; font-size: .85rem; }
+  .yours input[type=range] { flex: 1; }
+  form.add { display: grid; gap: .45rem; }
+  form.add input, form.add textarea { width: 100%; padding: .35rem .5rem; border: 1px solid var(--line); border-radius: 6px; }
+  pre { background: #0f172a; color: #e2e8f0; padding: .8rem; border-radius: 8px; overflow: auto; font-size: .75rem; max-height: 420px; }
+  @media (max-width: 680px) { .csq { grid-template-columns: 1fr; } }
+  body.embed main { padding-top: .4rem; }
+  body.embed .hide-embed { display: none; }
+</style>
+</head>
+<body>
+<main>
+  <header class="hide-embed">
+    <h1>If pages <span class="muted small">· toy prototype, not a product</span></h1>
+    <p class="muted small" style="margin:.2rem 0 0">“If this happens, what changes?” One uncertain parent event, its branches, and consequences forecast under each branch.
+      Companion to the post <a href="#" id="post-link">“What if? The open consequences problem”</a>.</p>
+  </header>
+  <nav class="tabs" id="tabs" role="tablist"></nav>
+  <div id="page"></div>
+</main>
+
+<!-- ===== Data. Every number below is ILLUSTRATIVE, written for this demo. ===== -->
+<script id="data" type="application/json">
+{
+  "pages": [
+    {
+      "id": "if:metaculus-7790",
+      "short": "NYC hurricane (live)",
+      "status": "open",
+      "parent": {
+        "title": "Will New York City experience a hurricane before 2030?",
+        "resolution": "Sustained hurricane-force winds (≥33 m/s for one minute at 10 m) reported somewhere within New York City limits before 1 Jan 2030 (Metaculus criteria, abridged).",
+        "closes": "2030-01-01",
+        "sources": [
+          {"platform": "Metaculus", "url": "https://www.metaculus.com/questions/7790/nyc-hurricane-by-2030/", "p": 0.50, "asOf": "2026-11", "note": "71 forecasters"},
+          {"platform": "Manifold (mirror)", "url": "https://manifold.markets/mirrorbot/metaculus-will-new-york-city-experi", "p": 0.25, "asOf": "2026-11"}
+        ],
+        "branches": [
+          {"id": "yes", "label": "Hurricane before 2030"},
+          {"id": "no", "label": "No hurricane before 2030"}
+        ]
+      },
+      "note": "The bar for YES is high: Sandy (2012) and Ida (2021) did enormous damage without clearly meeting it. So many 'hurricane-like' consequences can also happen in the NO branch. The page only cares about the difference.",
+      "consequences": [
+        {"id": "csq:nyc-hurricane/fema-major-disaster", "title": "FEMA major disaster declaration covering a NYC borough for a tropical-cyclone-related event",
+         "criterion": "A federal major disaster declaration (DR) listing at least one of the five boroughs, incident type hurricane/tropical storm/remnants.", "horizon": "2031-12-31",
+         "mechanism": "A qualifying hurricane almost always triggers a declaration; remnants (cf. Ida 2021) can too.",
+         "status": "accepted", "proposedBy": "demo-human",
+         "estimates": {"demo-human": {"yes": 0.92, "no": 0.35}, "demo-model": {"yes": 0.88, "no": 0.30}}},
+        {"id": "csq:nyc-hurricane/subway-24h", "title": "MTA suspends all subway service for ≥24 h because of a storm",
+         "criterion": "System-wide suspension of NYC subway service lasting at least 24 consecutive hours, attributed to a storm.", "horizon": "2031-12-31",
+         "mechanism": "Pre-emptive shutdowns (Irene 2011) and tunnel flooding (Sandy 2012).",
+         "status": "accepted", "proposedBy": "demo-human",
+         "estimates": {"demo-human": {"yes": 0.60, "no": 0.07}, "demo-model": {"yes": 0.70, "no": 0.10}}},
+        {"id": "csq:nyc-hurricane/evac-zone1", "title": "Mandatory evacuation order for NYC Hurricane Evacuation Zone 1",
+         "criterion": "City or State issues a mandatory evacuation order covering Zone 1.", "horizon": "2031-12-31",
+         "mechanism": "Orders are issued ahead of landfall, so they also happen for storms that end up missing the YES bar.",
+         "status": "accepted", "proposedBy": "demo-model",
+         "estimates": {"demo-human": {"yes": 0.80, "no": 0.15}, "demo-model": {"yes": 0.75, "no": 0.20}}},
+        {"id": "csq:nyc-hurricane/power-500k", "title": "≥500,000 Con Edison customers without power at the same time",
+         "criterion": "Con Edison reports a simultaneous outage peak of at least 500,000 customers.", "horizon": "2031-12-31",
+         "mechanism": "Wind damage to overhead lines and flooding of substations.",
+         "status": "accepted", "proposedBy": "demo-human",
+         "estimates": {"demo-human": {"yes": 0.50, "no": 0.05}}},
+        {"id": "csq:nyc-hurricane/nfip-uptake", "title": "NFIP flood-insurance policies in force in NYC are ≥20% above their Jan 2027 level",
+         "criterion": "FEMA NFIP policies-in-force count for NYC on 31 Dec 2031 vs. 1 Jan 2027.", "horizon": "2031-12-31",
+         "mechanism": "Salience of a recent event; possible remapping of flood zones.",
+         "status": "accepted", "proposedBy": "demo-model",
+         "estimates": {"demo-human": {"yes": 0.35, "no": 0.10}, "demo-model": {"yes": 0.45, "no": 0.15}}},
+        {"id": "csq:nyc-hurricane/resilience-bond", "title": "New dedicated coastal-resilience bond or levy of ≥$1bn enacted by NY State or City",
+         "criterion": "Legislation or ballot measure creating new funding of at least $1bn earmarked for coastal resilience.", "horizon": "2031-12-31",
+         "mechanism": "Political window after a disaster.",
+         "status": "accepted", "proposedBy": "demo-human",
+         "estimates": {"demo-human": {"yes": 0.30, "no": 0.12}}},
+        {"id": "csq:nyc-hurricane/hospital-evac", "title": "A NYC hospital fully evacuates patients because of storm flooding",
+         "criterion": "To be written by a human curator.", "horizon": "2031-12-31",
+         "mechanism": "Sandy precedent (backup generators in flooded basements).",
+         "status": "candidate", "proposedBy": "demo-model", "estimates": {}},
+        {"id": "csq:nyc-hurricane/mayoral-2029", "title": "Climate resilience becomes a central theme of the 2029 mayoral race",
+         "criterion": "None proposed.", "horizon": "2029-11-30",
+         "mechanism": "Salience.",
+         "status": "rejected", "rejectReason": "No checkable resolution criterion. Could be reworded (e.g. mentions in debates).",
+         "proposedBy": "demo-model", "estimates": {}}
+      ]
+    },
+    {
+      "id": "if:noaa-enso-jja-2027",
+      "short": "ENSO state, summer 2027 (3 outcomes)",
+      "status": "open",
+      "parent": {
+        "title": "What will the ENSO state be in June–August 2027: La Niña, neutral or El Niño?",
+        "resolution": "NOAA CPC Relative Oceanic Niño Index (RONI) for June–August 2027: ≤ −0.5 °C La Niña, ≥ +0.5 °C El Niño, otherwise neutral.",
+        "closes": "2027-09-15",
+        "sources": [
+          {"platform": "NOAA CPC strength probabilities", "url": "https://www.cpc.ncep.noaa.gov/products/analysis_monitoring/enso/roni/strengths/", "p": {"nina": 0.33, "neutral": 0.61, "nino": 0.06}, "asOf": "2026-11", "note": "JJA row"}
+        ],
+        "branches": [
+          {"id": "nina", "label": "La Niña"},
+          {"id": "neutral", "label": "Neutral"},
+          {"id": "nino", "label": "El Niño"}
+        ]
+      },
+      "note": "An exogenous event with three outcomes, an official probability source that isn't a prediction platform, and consequences that resolve within about a year. Consequences only belong here if they differ across at least two outcomes.",
+      "consequences": [
+        {"id": "csq:enso-jja-2027/atlantic-above-normal", "title": "2027 Atlantic hurricane season is above normal",
+         "criterion": "Seasonal ACE above NOAA's above-normal threshold.", "horizon": "2027-11-30",
+         "mechanism": "El Niño strengthens wind shear over the Atlantic; La Niña weakens it.",
+         "status": "accepted", "proposedBy": "demo-human",
+         "estimates": {"demo-human": {"nina": 0.65, "neutral": 0.45, "nino": 0.15}, "demo-model": {"nina": 0.60, "neutral": 0.40, "nino": 0.20}}},
+        {"id": "csq:enso-jja-2027/horn-africa-short-rains", "title": "Below-normal Oct–Dec 2027 short rains in the eastern Horn of Africa",
+         "criterion": "ICPAC / FEWS NET assessment of OND 2027 rainfall as below normal over most of the region.", "horizon": "2028-01-31",
+         "mechanism": "La Niña (often with a negative Indian Ocean Dipole) favours dry short rains.",
+         "status": "accepted", "proposedBy": "demo-model",
+         "estimates": {"demo-human": {"nina": 0.70, "neutral": 0.35, "nino": 0.15}, "demo-model": {"nina": 0.65, "neutral": 0.30, "nino": 0.10}}},
+        {"id": "csq:enso-jja-2027/argentina-soy", "title": "Argentina's 2027/28 soybean harvest is below 45 Mt",
+         "criterion": "USDA final estimate for the 2027/28 Argentine soybean crop.", "horizon": "2028-07-31",
+         "mechanism": "La Niña springs and summers tend to bring drought to the Pampas.",
+         "status": "accepted", "proposedBy": "demo-human",
+         "estimates": {"demo-human": {"nina": 0.45, "neutral": 0.20, "nino": 0.10}}},
+        {"id": "csq:enso-jja-2027/warmest-year", "title": "2027 is the warmest year on record globally",
+         "criterion": "Copernicus ERA5 annual global mean surface temperature.", "horizon": "2028-01-31",
+         "mechanism": "Mostly set by the El Niño peaking around early 2027; the summer state matters only at the margin.",
+         "status": "accepted", "proposedBy": "demo-model",
+         "estimates": {"demo-human": {"nina": 0.65, "neutral": 0.75, "nino": 0.85}, "demo-model": {"nina": 0.70, "neutral": 0.78, "nino": 0.85}}},
+        {"id": "csq:enso-jja-2027/food-prices", "title": "Food prices rise because of La Niña",
+         "criterion": "None proposed.", "horizon": "2028-06-30",
+         "mechanism": "Crop losses in several regions.",
+         "status": "rejected", "rejectReason": "Too vague and attributional ('because of'). Could become e.g. 'FAO Food Price Index up ≥10% year on year in June 2028'.",
+         "proposedBy": "demo-model", "estimates": {}}
+      ]
+    },
+    {
+      "id": "if:uk-eu-referendum-2016",
+      "short": "Brexit vote 2016 (resolved, backtest demo)",
+      "status": "resolved",
+      "resolvedBranch": "leave",
+      "asIfWrittenOn": "2016-06-22",
+      "parent": {
+        "title": "Will the UK vote to leave the EU in the 23 June 2016 referendum?",
+        "resolution": "Official result of the 23 June 2016 referendum.",
+        "closes": "2016-06-24",
+        "sources": [
+          {"platform": "PredictIt (per Reuters)", "url": "https://www.reuters.com/article/us-britain-eu-predictions-idUSKCN0ZB06R/", "p": 0.16, "asOf": "2016-06-23", "note": "as polls closed"}
+        ],
+        "branches": [
+          {"id": "leave", "label": "Leave wins"},
+          {"id": "remain", "label": "Remain wins"}
+        ]
+      },
+      "note": "Written in hindsight to show the full loop (forecast → resolution → scoring → missed consequences). A real backtest would use forecasters or models with no knowledge past the 'written on' date.",
+      "consequences": [
+        {"id": "csq:brexit-vote/gbp-drop", "title": "GBP/USD falls more than 5% between the 23 and 24 June closes",
+         "criterion": "Close-to-close change in GBP/USD.", "horizon": "2016-06-24",
+         "mechanism": "Markets priced Remain; a surprise repricing.", "status": "accepted", "proposedBy": "demo-human",
+         "estimates": {"demo-human": {"leave": 0.80, "remain": 0.02}, "demo-model": {"leave": 0.70, "remain": 0.01}},
+         "outcome": true, "evidence": "Sterling fell about 8% to a 31-year low."},
+        {"id": "csq:brexit-vote/cameron-resigns", "title": "David Cameron announces his resignation as PM by end of 2016",
+         "criterion": "Public announcement.", "horizon": "2016-12-31",
+         "mechanism": "He led the Remain campaign.", "status": "accepted", "proposedBy": "demo-model",
+         "estimates": {"demo-human": {"leave": 0.65, "remain": 0.10}, "demo-model": {"leave": 0.80, "remain": 0.08}},
+         "outcome": true, "evidence": "Announced on 24 June 2016."},
+        {"id": "csq:brexit-vote/boe-cut", "title": "Bank of England cuts Bank Rate by end of 2016",
+         "criterion": "MPC decision lowering Bank Rate.", "horizon": "2016-12-31",
+         "mechanism": "Monetary response to an expected slowdown.", "status": "accepted", "proposedBy": "demo-human",
+         "estimates": {"demo-human": {"leave": 0.60, "remain": 0.10}, "demo-model": {"leave": 0.55, "remain": 0.15}},
+         "outcome": true, "evidence": "Cut from 0.5% to 0.25% on 4 August 2016."},
+        {"id": "csq:brexit-vote/recession", "title": "UK technical recession starting by end of 2017",
+         "criterion": "Two consecutive quarters of negative real GDP growth (ONS).", "horizon": "2017-12-31",
+         "mechanism": "Uncertainty shock to investment and consumption, as warned by the Treasury.", "status": "accepted", "proposedBy": "demo-human",
+         "estimates": {"demo-human": {"leave": 0.55, "remain": 0.10}, "demo-model": {"leave": 0.40, "remain": 0.10}},
+         "outcome": false, "evidence": "No recession; growth slowed but stayed positive."},
+        {"id": "csq:brexit-vote/article-50", "title": "UK notifies Article 50 by end of 2017",
+         "criterion": "Formal Article 50 notification to the European Council.", "horizon": "2017-12-31",
+         "mechanism": "Required step to leave.", "status": "accepted", "proposedBy": "demo-model",
+         "estimates": {"demo-human": {"leave": 0.75, "remain": 0.01}, "demo-model": {"leave": 0.85, "remain": 0.00}},
+         "outcome": true, "evidence": "Notified on 29 March 2017."},
+        {"id": "csq:brexit-vote/scotland-s30", "title": "Scottish Government formally requests a Section 30 order (second independence referendum) by end of 2017",
+         "criterion": "Formal request to the UK Government.", "horizon": "2017-12-31",
+         "mechanism": "Scotland voted Remain; SNP manifesto trigger.", "status": "accepted", "proposedBy": "demo-human",
+         "estimates": {"demo-human": {"leave": 0.50, "remain": 0.03}},
+         "outcome": true, "evidence": "Letter sent on 31 March 2017."},
+        {"id": "csq:brexit-vote/indyref2-held", "title": "A second Scottish independence referendum is held by end of 2019",
+         "criterion": "Referendum takes place.", "horizon": "2019-12-31",
+         "mechanism": "Follows from the request above, if granted.", "status": "accepted", "proposedBy": "demo-model",
+         "estimates": {"demo-human": {"leave": 0.30, "remain": 0.02}, "demo-model": {"leave": 0.40, "remain": 0.02}},
+         "outcome": false, "evidence": "Not held (consent refused)."},
+        {"id": "csq:brexit-vote/left-by-2019", "title": "UK is no longer an EU member state on 31 Dec 2019",
+         "criterion": "Membership status on that date.", "horizon": "2019-12-31",
+         "mechanism": "Two-year Article 50 clock.", "status": "accepted", "proposedBy": "demo-human",
+         "estimates": {"demo-human": {"leave": 0.60, "remain": 0.00}, "demo-model": {"leave": 0.75, "remain": 0.00}},
+         "outcome": false, "evidence": "Left on 31 January 2020, one month after the horizon."},
+        {"id": "csq:brexit-vote/ftse-lower", "title": "FTSE 100 closes 2016 below its 23 June 2016 close (6,338)",
+         "criterion": "Last 2016 close vs. 23 June close.", "horizon": "2016-12-31",
+         "mechanism": "Risk-off repricing of UK assets.", "status": "accepted", "proposedBy": "demo-model",
+         "estimates": {"demo-human": {"leave": 0.65, "remain": 0.30}, "demo-model": {"leave": 0.70, "remain": 0.30}},
+         "outcome": false, "evidence": "Closed 2016 at a record 7,143: a weaker pound lifted the sterling value of multinationals' foreign earnings."}
+      ],
+      "missed": [
+        {"title": "Snap general election in June 2017, in which the governing party lost its majority", "note": "Reshaped the whole negotiation."},
+        {"title": "The Irish border (the 'backstop') becomes the main sticking point of the withdrawal negotiations", "note": "Raised by some specialists before the vote, rarely in general lists."},
+        {"title": "Two further changes of prime minister within about three years, both driven by Brexit", "note": "Theresa May resigned in 2019."},
+        {"title": "A spike in police-recorded hate crime in the weeks after the vote", "note": "Reported by the Home Office for July 2016."}
+      ]
+    }
+  ],
+  "contributors": {
+    "demo-human": {"kind": "human", "label": "demo human"},
+    "demo-model": {"kind": "ai", "label": "demo model"}
+  }
+}
+</script>
+
+<script>
+(() => {
+  const DATA = JSON.parse(document.getElementById('data').textContent);
+  const params = new URLSearchParams(location.search);
+  if (params.has('embed')) document.body.classList.add('embed');
+  const COLORS = ['#c2410c', '#1d4ed8', '#15803d', '#7c3aed'];
+  const LS_KEY = 'ifpages-toy-v0';
+  const store = JSON.parse(localStorage.getItem(LS_KEY) || '{}'); // {pageId: {forecasts:{csqId:{b:p}}, added:[...]}}
+  const save = () => localStorage.setItem(LS_KEY, JSON.stringify(store));
+  const mine = (pid) => (store[pid] ||= {forecasts: {}, added: []});
+
+  const esc = (s) => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  const pct = (p) => p == null ? '–' : Math.round(p * 100) + '%';
+  const median = (xs) => { const s = [...xs].sort((a,b)=>a-b); const m = s.length >> 1; return s.length % 2 ? s[m] : (s[m-1] + s[m]) / 2; };
+
+  let current = DATA.pages.find(p => p.id === (params.get('page') || location.hash.slice(1))) || DATA.pages[0];
+  let sortBy = 'delta';
+
+  function allConsequences(page) {
+    const added = mine(page.id).added.map(c => ({...c, status: 'accepted', proposedBy: 'you', local: true}));
+    return [...page.consequences, ...added];
+  }
+  function estimatesWithYou(page, c) {
+    const est = {...(c.estimates || {})};
+    const y = mine(page.id).forecasts[c.id];
+    if (y) est.you = y;
+    return est;
+  }
+  function aggregate(page, c) {
+    const est = c.estimates || {};          // aggregate = median of listed contributors (not "you")
+    const out = {};
+    for (const b of page.parent.branches) {
+      const xs = Object.values(est).map(e => e[b.id]).filter(v => v != null);
+      out[b.id] = xs.length ? median(xs) : null;
+    }
+    if (c.local) Object.assign(out, c.p);
+    return out;
+  }
+  const pParent = (page) => page.parent.sources[0].p;
+  function branchProbs(page) {
+    const p = pParent(page);
+    if (typeof p === 'object') return p;              // several outcomes: {branchId: p}
+    const [b0, b1] = page.parent.branches;           // binary: p is P(first branch)
+    return {[b0.id]: p, [b1.id]: 1 - p};
+  }
+  function delta(page, agg) {
+    const vs = page.parent.branches.map(b => agg[b.id]).filter(v => v != null);
+    return vs.length < 2 ? null : Math.max(...vs) - Math.min(...vs);
+  }
+  function implied(page, agg) {
+    const bp = branchProbs(page); let s = 0;
+    for (const b of page.parent.branches) { if (agg[b.id] == null) return null; s += bp[b.id] * agg[b.id]; }
+    return s;
+  }
+
+  function chart(page, agg, you) {
+    const W = 250, H = 46, x0 = 10, x1 = W - 10, X = p => x0 + p * (x1 - x0);
+    const bs = page.parent.branches;
+    const vals = bs.map(b => agg[b.id]).filter(v => v != null);
+    let s = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Probability under each branch">`;
+    s += `<line x1="${x0}" x2="${x1}" y1="20" y2="20" stroke="#e3e6ee" stroke-width="2"/>`;
+    for (const t of [0, .5, 1]) s += `<line x1="${X(t)}" x2="${X(t)}" y1="15" y2="25" stroke="#cfd4de"/><text x="${X(t)}" y="40" font-size="9" text-anchor="middle" fill="#8a93a5">${t*100}%</text>`;
+    if (vals.length >= 2) s += `<line x1="${X(Math.min(...vals))}" x2="${X(Math.max(...vals))}" y1="20" y2="20" stroke="#9aa3b5" stroke-width="3"/>`;
+    bs.forEach((b, i) => { const v = agg[b.id]; if (v != null) s += `<circle cx="${X(v)}" cy="20" r="6" fill="${COLORS[i]}"><title>${esc(b.label)}: ${pct(v)}</title></circle>`; });
+    if (you) bs.forEach((b, i) => { const v = you[b.id]; if (v != null) s += `<circle cx="${X(v)}" cy="20" r="8" fill="none" stroke="${COLORS[i]}" stroke-width="1.5" stroke-dasharray="2 2"><title>You, ${esc(b.label)}: ${pct(v)}</title></circle>`; });
+    return s + '</svg>';
+  }
+
+  const pill = (who) => {
+    if (who === 'you') return '<span class="pill you">you (local)</span>';
+    const c = DATA.contributors[who] || {kind: 'human', label: who};
+    return `<span class="pill ${c.kind}">${c.kind === 'ai' ? 'AI · ' : 'human · '}${esc(c.label)}</span>`;
+  };
+
+  function renderTabs() {
+    const nav = document.getElementById('tabs');
+    nav.innerHTML = DATA.pages.map(p => `<button role="tab" aria-selected="${p === current}" data-id="${p.id}">${esc(p.short)}</button>`).join('');
+    nav.onclick = (e) => { const id = e.target.dataset?.id; if (!id) return; current = DATA.pages.find(p => p.id === id); history.replaceState(null, '', '#' + id); render(); };
+  }
+
+  function renderConsequence(page, c) {
+    const agg = aggregate(page, c);
+    const you = mine(page.id).forecasts[c.id];
+    const d = delta(page, agg), imp = implied(page, agg);
+    const resolved = page.status === 'resolved' && c.outcome != null;
+    const outcomePill = resolved ? (c.outcome ? '<span class="pill ok">happened</span>' : '<span class="pill bad">did not happen</span>') : '';
+    const statusPill = c.status === 'candidate' ? '<span class="pill na">candidate · awaiting human review</span>'
+                     : c.status === 'rejected' ? '<span class="pill na">rejected</span>' : '';
+    const ests = estimatesWithYou(page, c);
+    const estRows = Object.entries(ests).map(([who, e]) =>
+      `<tr><td>${pill(who)}</td>${page.parent.branches.map(b => `<td>${pct(e[b.id])}</td>`).join('')}</tr>`).join('');
+    const canForecast = c.status === 'accepted' && page.status !== 'resolved';
+    const sliders = canForecast ? `<div class="yours" id="y-${esc(c.id)}">
+        ${page.parent.branches.map((b, i) => { const v = you?.[b.id] ?? agg[b.id] ?? .5; return `
+          <label><span class="dot" style="background:${COLORS[i]}"></span>${esc(b.label)}
+            <input type="range" min="0" max="100" value="${Math.round(v*100)}" data-c="${esc(c.id)}" data-b="${b.id}">
+            <output>${pct(v)}</output></label>`; }).join('')}
+        <div class="small muted">Saved in your browser only.</div></div>` : '';
+    return `<div class="card csq ${c.status}">
+      <div>
+        <div class="title">${esc(c.title)}</div>
+        <div class="small">${pill(c.proposedBy)} ${statusPill} ${outcomePill} <span class="muted">· horizon ${esc(c.horizon)}</span></div>
+        <div class="id">${esc(c.id)}</div>
+        ${c.status === 'rejected' ? `<div class="small muted">Reason: ${esc(c.rejectReason)}</div>` : ''}
+      </div>
+      <div class="chart">
+        ${c.status === 'accepted' ? chart(page, agg, you) + `<div class="nums">Δ ${d == null ? '–' : pct(d)} · implied P(Y) ${pct(imp)}</div>` : '<div class="nums">not forecast yet</div>'}
+        ${canForecast ? `<div class="nums"><button class="btn" data-toggle="${esc(c.id)}">${you ? 'edit my forecast' : 'add my forecast'}</button></div>` : ''}
+      </div>
+      ${sliders}
+      <details><summary>criterion, mechanism, forecasts</summary>
+        <p><b>Resolves YES if:</b> ${esc(c.criterion)}<br><b>Mechanism (one line):</b> ${esc(c.mechanism)}${c.evidence ? `<br><b>What happened:</b> ${esc(c.evidence)}` : ''}</p>
+        ${estRows ? `<table><tr><th>Forecaster</th>${page.parent.branches.map(b => `<th>if ${esc(b.label)}</th>`).join('')}</tr>${estRows}</table>` : ''}
+        <p class="muted small">Stable ID → this consequence could later become the parent of its own page.</p>
+      </details>
+    </div>`;
+  }
+
+  function scoring(page) {
+    const rb = page.resolvedBranch, rlabel = page.parent.branches.find(b => b.id === rb).label;
+    const other = page.parent.branches.filter(b => b.id !== rb).map(b => b.label).join(', ');
+    const scored = page.consequences.filter(c => c.outcome != null);
+    const by = {};
+    for (const c of scored) for (const [who, e] of Object.entries(c.estimates || {})) {
+      if (e[rb] == null) continue;
+      (by[who] ||= []).push((e[rb] - (c.outcome ? 1 : 0)) ** 2);
+    }
+    const aggB = scored.map(c => (aggregate(page, c)[rb] - (c.outcome ? 1 : 0)) ** 2);
+    const rows = Object.entries(by).map(([who, xs]) => `<tr><td>${pill(who)}</td><td>${xs.length}</td><td>${(xs.reduce((a,b)=>a+b,0)/xs.length).toFixed(3)}</td></tr>`).join('');
+    return `<h3>Resolution and scoring</h3>
+      <div class="card">
+        <p style="margin-top:0">Parent resolved: <b>${esc(rlabel)}</b>. The <b>${esc(other)}</b> branch never happened, so forecasts on it are <span class="pill na">annulled</span>: they can't be checked directly. This is one of the open problems.</p>
+        <table><tr><th>Forecaster</th><th>scored consequences</th><th>mean Brier on realised branch (lower is better)</th></tr>
+          ${rows}
+          <tr><td><span class="pill">page aggregate (median)</span></td><td>${aggB.length}</td><td>${(aggB.reduce((a,b)=>a+b,0)/aggB.length).toFixed(3)}</td></tr>
+        </table>
+        <p class="small muted">Brier scores the probabilities given to the consequences that were <i>listed</i>. It says nothing about what nobody listed: see below.</p>
+      </div>
+      <h3>Missed consequences <span class="muted small">(identified after the fact, e.g. by blind raters)</span></h3>
+      <div class="card">
+        <ul style="margin:.2rem 0">${(page.missed || []).map(m => `<li><b>${esc(m.title)}</b> <span class="muted small">${esc(m.note)}</span></li>`).join('')}</ul>
+        <p class="small muted" style="margin-bottom:0">Listed and happened: ${scored.filter(c => c.outcome).length}. Important but missed: ${(page.missed || []).length}.
+        How to weigh “important” and turn this into a coverage score is the main research question, not solved here.</p>
+      </div>`;
+  }
+
+  function addForm(page) {
+    if (page.status === 'resolved') return '';
+    return `<h3>Propose a consequence</h3>
+      <form class="card add" id="add">
+        <input name="title" required placeholder="Consequence, e.g. 'NYC public schools closed for ≥3 days because of a storm'">
+        <input name="criterion" required placeholder="Resolves YES if…">
+        <input name="horizon" required placeholder="Horizon (YYYY-MM-DD)" pattern="\\d{4}-\\d{2}-\\d{2}">
+        <input name="mechanism" placeholder="Mechanism in one line (optional)">
+        ${page.parent.branches.map(b => `<label class="small">P(consequence | ${esc(b.label)}) in % <input name="p_${b.id}" type="number" min="0" max="100" required></label>`).join('')}
+        <div><button class="btn" type="submit">Add (local only)</button> <button class="btn" type="button" id="export">Export my contributions (JSON)</button> <button class="btn" type="button" id="reset">Reset mine</button></div>
+      </form>`;
+  }
+
+  function render() {
+    renderTabs();
+    const page = current, P = page.parent;
+    const bp = branchProbs(page);
+    let cs = allConsequences(page);
+    const key = {
+      delta: c => -(delta(page, aggregate(page, c)) ?? -1),
+      first: c => -(aggregate(page, c)[P.branches[0].id] ?? -1),
+      implied: c => -(implied(page, aggregate(page, c)) ?? -1),
+    }[sortBy];
+    const order = {accepted: 0, candidate: 1, rejected: 2};
+    cs = cs.sort((a, b) => (order[a.status] - order[b.status]) || (key(a) - key(b)));
+
+    document.getElementById('page').innerHTML = `
+      <section class="card parent">
+        <div class="small muted">${page.status === 'resolved' ? `Resolved page · written as of ${esc(page.asIfWrittenOn)}` : 'Open page'} · <span class="id">${esc(page.id)}</span></div>
+        <h2>If: ${esc(P.title)}</h2>
+        <div class="meta">
+          ${P.sources.map(s => `<span><a href="${esc(s.url)}" target="_blank" rel="noopener">${esc(s.platform)}</a>: ${typeof s.p === 'object' ? P.branches.map(b => esc(b.label) + ' ' + pct(s.p[b.id])).join(' · ') : pct(s.p)} <span class="small">(${esc(s.asOf)}${s.note ? ', ' + esc(s.note) : ''})</span></span>`).join('')}
+          <span>closes ${esc(P.closes)}</span>
+        </div>
+        <div class="small" style="margin-top:.4rem"><b>Resolution:</b> ${esc(P.resolution)}</div>
+        <div class="branches">${P.branches.map((b, i) => `<span class="pill"><span class="dot" style="background:${COLORS[i]}"></span>${esc(b.label)} · ${pct(bp[b.id])}</span>`).join('')}</div>
+      </section>
+      <div class="card warn">
+        <b>Read me.</b> Numbers are <b>conditional probabilities, not causal effects</b>: “P(Y | X)” is not “X causes Y”.
+        All forecasts on this toy page are <b>illustrative</b> (demo contributors), not anyone's considered view. ${esc(page.note || '')}
+      </div>
+      <div class="toolbar">
+        <span>${cs.filter(c => c.status === 'accepted').length} consequences</span>
+        <label>Sort by <select id="sort">
+          <option value="delta" ${sortBy==='delta'?'selected':''}>difference between branches (Δ)</option>
+          <option value="first" ${sortBy==='first'?'selected':''}>P(Y | ${esc(P.branches[0].label)})</option>
+          <option value="implied" ${sortBy==='implied'?'selected':''}>implied unconditional P(Y)</option>
+        </select></label>
+        <span class="small muted">${P.branches.map((b, i) => `<span class="dot" style="background:${COLORS[i]}"></span>if ${esc(b.label)}`).join(' &nbsp; ')} &nbsp; ◌ yours</span>
+      </div>
+      ${cs.map(c => renderConsequence(page, c)).join('')}
+      ${page.status === 'resolved' ? scoring(page) : ''}
+      ${addForm(page)}
+      <details class="hide-embed" style="margin-top:1.2rem"><summary class="muted">Data model (JSON) for this page</summary><pre>${esc(JSON.stringify(page, null, 2))}</pre></details>
+      <p class="small muted hide-embed">Δ = gap between the highest and lowest branch probability; a consequence only belongs on the page if Δ is meaningfully above zero.
+      Implied P(Y) = Σ P(branch) × P(Y | branch), using the first platform's probability. It can be checked against standalone questions on Y, where they exist.</p>`;
+
+    document.getElementById('sort').onchange = (e) => { sortBy = e.target.value; render(); };
+    document.querySelectorAll('[data-toggle]').forEach(btn => btn.onclick = () =>
+      document.getElementById('y-' + btn.dataset.toggle).classList.toggle('open'));
+    document.querySelectorAll('.yours input[type=range]').forEach(r => {
+      r.oninput = () => { r.nextElementSibling.textContent = r.value + '%'; };
+      r.onchange = () => {
+        const f = mine(page.id).forecasts;
+        const cur = f[r.dataset.c] ||= {};
+        // initialise all branches from the sliders so a forecast is always complete
+        document.querySelectorAll(`.yours input[data-c="${CSS.escape(r.dataset.c)}"]`).forEach(s => cur[s.dataset.b] = +s.value / 100);
+        save(); render();
+        document.getElementById('y-' + r.dataset.c)?.classList.add('open');
+      };
+    });
+    const form = document.getElementById('add');
+    if (form) {
+      form.onsubmit = (e) => {
+        e.preventDefault();
+        const fd = new FormData(form), p = {};
+        for (const b of P.branches) p[b.id] = Math.min(100, Math.max(0, +fd.get('p_' + b.id))) / 100;
+        const slug = String(fd.get('title')).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 40);
+        const id = 'csq:local/' + slug + '-' + Date.now().toString(36);
+        mine(page.id).added.push({id, title: fd.get('title'), criterion: fd.get('criterion'), horizon: fd.get('horizon'),
+          mechanism: fd.get('mechanism') || '–', p, estimates: {}});
+        mine(page.id).forecasts[id] = p;
+        save(); render();
+      };
+      document.getElementById('export').onclick = () => {
+        const blob = new Blob([JSON.stringify({page: page.id, exported: new Date().toISOString(), ...mine(page.id)}, null, 2)], {type: 'application/json'});
+        const a = Object.assign(document.createElement('a'), {href: URL.createObjectURL(blob), download: page.id.replace(/[^a-z0-9]+/gi, '_') + '_mine.json'});
+        a.click(); URL.revokeObjectURL(a.href);
+      };
+      document.getElementById('reset').onclick = () => { if (confirm('Delete your local forecasts and consequences for this page?')) { delete store[page.id]; save(); render(); } };
+    }
+  }
+
+  render();
+})();
+</script>
+</body>
+</html>
